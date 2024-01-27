@@ -65,11 +65,11 @@ public final class TokenProvider {
             else return token;
         }
 
-        LOGGER.debug("Token expired or not suitable, requesting again. {scopes: {}, oldToken: {}}", Arrays.asList(scopes), token);
+        LOGGER.info("Token expired or not suitable, requesting again. {scopes: {}, oldToken: {}}", Arrays.asList(scopes), token);
         GenericJson resp = session.mercury().sendSync(MercuryRequests.requestToken(session.deviceId(), String.join(",", scopes)));
         token = new StoredToken(resp.obj);
 
-        LOGGER.debug("Updated token successfully! {scopes: {}, newToken: {}}", Arrays.asList(scopes), token);
+        LOGGER.info("Updated token successfully! {scopes: {}, newToken: {}}", Arrays.asList(scopes), token);
         tokens.add(token);
 
         return token;
