@@ -85,6 +85,10 @@ public class Player implements Closeable {
 
         initState();
     }
+    
+    public void start() {
+    	session.start();
+    }
 
     public void addEventsListener(@NotNull EventsListener listener) {
         events.listeners.add(listener);

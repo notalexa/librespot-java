@@ -388,6 +388,10 @@ public final class Session implements Closeable {
             }
         }, "hm://connect-state/v1/connect/logout");
     }
+    
+    public void start() {
+    	dealer().start();
+    }
 
     /**
      * Authenticates with the server. Does not create all the components unlike {@link Session#authenticate(Authentication.LoginCredentials)}.
@@ -1276,6 +1280,8 @@ public final class Session implements Closeable {
 
         private ConnectionHolder(@NotNull Socket socket) throws IOException {
             this.socket = socket;
+            // Big but not infinite.
+            socket.setSoTimeout(10000);
             this.in = new DataInputStream(socket.getInputStream());
             this.out = new DataOutputStream(socket.getOutputStream());
         }
