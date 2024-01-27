@@ -123,8 +123,8 @@ public final class PlayableContentFeeder {
             throw new IllegalStateException();
 
         HttpUrl url = HttpUrl.get(urlStr);
-        if (track != null) return CdnFeedHelper.loadTrack(session, track, file, url, preload, haltListener);
-        else return CdnFeedHelper.loadEpisode(session, episode, file, url, haltListener);
+        if (track != null) return CdnFeedHelper.loadTrack(session, track, file, new HttpUrl[] {url}, preload, haltListener);
+        else return CdnFeedHelper.loadEpisode(session, episode, file, new HttpUrl[] {url}, haltListener);
     }
 
     @NotNull
