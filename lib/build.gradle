@@ -1,0 +1,40 @@
+
+
+plugins {
+    id "com.google.protobuf" version "0.9.4"
+}
+
+dependencies {
+	implementation project(':decoder-api')
+	implementation project(':sink-api')
+	implementation group: 'org.jetbrains', name: 'annotations', version: '24.0.1'
+	implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.0.9'
+	implementation group: 'org.jcraft', name: 'jorbis', version: '0.0.17'
+	implementation group: 'com.badlogicgames.jlayer', name: 'jlayer', version: '1.0.2-gdx'
+	implementation group: 'com.google.protobuf', name: 'protobuf-java', version: '3.24.3'
+	implementation group: 'com.google.code.gson', name: 'gson', version: '2.10.1'
+	implementation group: 'com.squareup.okhttp3', name: 'okhttp', version: '4.10.0'
+	implementation group: 'commons-net', name: 'commons-net', version: '3.9.0'
+	implementation group: 'xyz.gianlu.zeroconf', name: 'zeroconf', version: '1.3.2'
+}
+
+if(hasProperty('maven.groupid')) {
+	publishing {
+		publications {
+	        mavenJava(MavenPublication) {
+	            artifactId = 'jlib-librespot'
+	            groupId = property('maven.groupid')
+	    	    version = property('librespot.version')
+	            from components.java
+	            artifact sourcesJar
+	            artifact javadocJar
+	        }
+	    }
+	    repositories {
+	        maven {
+	        	// Local only
+	        	url 'file://'+System.getProperty('user.home')+'/maven-repo'
+	        }
+	    }
+	}
+}

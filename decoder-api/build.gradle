@@ -1,0 +1,27 @@
+
+dependencies {
+	implementation project(':sink-api')
+	implementation group: 'org.jetbrains', name: 'annotations', version: '24.0.1'
+	implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.0.9'
+}
+
+if(hasProperty('maven.groupid')) {
+	publishing {
+		publications {
+	        mavenJava(MavenPublication) {
+	            artifactId = 'librespot-decoder-api'
+	            groupId = property('maven.groupid')
+	   	        version = property('librespot.version')
+	            from components.java
+	            artifact sourcesJar
+	            artifact javadocJar
+	        }
+	    }
+	    repositories {
+	        maven {
+	        	// Local only
+	        	url 'file://'+System.getProperty('user.home')+'/maven-repo'
+	        }
+	    }
+	}
+}
