@@ -39,6 +39,10 @@ import xyz.gianlu.librespot.mercury.MercuryClient;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -74,13 +78,13 @@ public class CdnManager {
 
     @NotNull
     public Streamer streamExternalEpisode(@NotNull Metadata.Episode episode, @NotNull HttpUrl externalUrl, @Nullable HaltListener haltListener) throws IOException, CdnException {
-        return new Streamer(new StreamId(episode), SuperAudioFormat.MP3 /* Guaranteed */, new CdnUrl(null, externalUrl),
+        return new Streamer(new StreamId(episode), SuperAudioFormat.MP3 /* Guaranteed */, new CdnUrl(null, new HttpUrl[] { externalUrl }),
                 session.cache(), new NoopAudioDecrypt(), haltListener);
     }
 
     @NotNull
-    public Streamer streamFile(@NotNull Metadata.AudioFile file, @NotNull byte[] key, @NotNull HttpUrl url, @Nullable HaltListener haltListener) throws IOException, CdnException {
-        return new Streamer(new StreamId(file), SuperAudioFormat.get(file.getFormat()), new CdnUrl(file.getFileId(), url),
+    public Streamer streamFile(@NotNull Metadata.AudioFile file, @NotNull byte[] key, @NotNull HttpUrl[] urls, @Nullable HaltListener haltListener) throws IOException, CdnException {
+        return new Streamer(new StreamId(file), SuperAudioFormat.get(file.getFormat()), new CdnUrl(file.getFileId(), urls),
                 session.cache(), new AesAudioDecrypt(key), haltListener);
     }
 
@@ -88,7 +92,7 @@ public class CdnManager {
      * This is used only to RENEW the url if needed.
      */
     @NotNull
-    private HttpUrl getAudioUrl(@NotNull ByteString fileId) throws IOException, CdnException, MercuryClient.MercuryException {
+    private HttpUrl[] getAudioUrl(@NotNull ByteString fileId) throws IOException, CdnException, MercuryClient.MercuryException {
         try (Response resp = session.api().send("GET", String.format("/storage-resolve/files/audio/interactive/%s", Utils.bytesToHex(fileId)), null, null)) {
             if (resp.code() != 200)
                 throw new IOException(resp.code() + ": " + resp.message());
@@ -98,9 +102,12 @@ public class CdnManager {
 
             StorageResolveResponse proto = StorageResolveResponse.parseFrom(body.byteStream());
             if (proto.getResult() == StorageResolveResponse.Result.CDN) {
-                String url = proto.getCdnurl(session.random().nextInt(proto.getCdnurlCount()));
-                LOGGER.debug("Fetched CDN url for {}: {}", Utils.bytesToHex(fileId), url);
-                return HttpUrl.get(url);
+            	HttpUrl[] result=new HttpUrl[proto.getCdnurlCount()];
+            	for(int i=0;i<result.length;i++) {
+            		result[i]=HttpUrl.get(proto.getCdnurl(i));
+            	}
+                LOGGER.debug("Fetched CDN url for {}: {}", Utils.bytesToHex(fileId), Arrays.toString(result));
+                return result;
             } else {
                 throw new CdnException(String.format("Could not retrieve CDN url! {result: %s}", proto.getResult()));
             }
@@ -132,10 +139,32 @@ public class CdnManager {
         private final ByteString fileId;
         private long expiration;
         private HttpUrl url;
-
-        CdnUrl(@Nullable ByteString fileId, @NotNull HttpUrl url) {
+        private List<HttpUrl> remainingUrls;
+        private boolean accepted;
+        
+        CdnUrl(@Nullable ByteString fileId, @NotNull HttpUrl[] urls) {
             this.fileId = fileId;
-            this.setUrl(url);
+            if(urls.length==1) {
+            	this.setUrl(urls[0]);
+            	remainingUrls=Collections.emptyList();
+            } else {
+            	remainingUrls=new ArrayList<>(Arrays.asList(urls));
+            	select();
+            }
+        }
+        
+        public HttpUrl select() {
+        	if(!accepted&&remainingUrls.size()>0) {
+        		url=remainingUrls.remove(session.random().nextInt(remainingUrls.size()));
+        		setUrl(url);
+        		return url;
+        	} else {
+        		return null;
+        	}
+        }
+        
+        public void accepted() {
+        	accepted=true;
         }
 
         @NotNull
@@ -144,12 +173,15 @@ public class CdnManager {
 
             if (expiration <= System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(5)) {
                 try {
-                    url = getAudioUrl(fileId);
+                	accepted=false;
+                    HttpUrl[] urls= getAudioUrl(fileId);
+                    remainingUrls=new ArrayList<>(Arrays.asList(urls));
+                    select();
+                    System.out.println("Refreshed URL to "+url);
                 } catch (IOException | MercuryClient.MercuryException ex) {
                     throw new CdnException(ex);
                 }
             }
-
             return url;
         }
 
@@ -179,15 +211,21 @@ public class CdnManager {
 
                     expiration = expireAt * 1000;
                 } else {
-                    String param = url.queryParameterName(0);
-                    int i = param.indexOf('_');
-                    if (i == -1) {
-                        expiration = -1;
-                        LOGGER.warn("Couldn't extract expiration, invalid parameter in CDN url: " + url);
-                        return;
-                    }
-
-                    expiration = Long.parseLong(param.substring(0, i)) * 1000;
+                	tokenStr=url.queryParameter("Expires");
+                	if(tokenStr!=null&&!tokenStr.isEmpty()) try {
+                		expiration=1000*Long.parseLong(tokenStr.substring(0,tokenStr.indexOf('~')));
+                	} catch(Throwable t) {
+                        LOGGER.warn("Couldn't extract expiration, invalid parameter in CDN url: " + url+" (parfameter="+tokenStr+")");
+                	} else {
+	                    String param = url.queryParameterName(0);
+	                    int i = param.indexOf('_');
+	                    if (i == -1) {
+	                        expiration = -1;
+	                        LOGGER.warn("Couldn't extract expiration, invalid parameter in CDN url: " + url);
+	                        return;
+	                    }
+	                    expiration = Long.parseLong(param.substring(0, i)) * 1000;
+                	}
                 }
             } else {
                 expiration = -1;
@@ -330,19 +368,29 @@ public class CdnManager {
 
         @NotNull
         public synchronized InternalResponse request(int rangeStart, int rangeEnd) throws IOException, CdnException {
-            try (Response resp = session.client().newCall(new Request.Builder().get().url(cdnUrl.url())
+        	HttpUrl url=cdnUrl.url();
+            while(url!=null) try (Response resp = session.client().newCall(new Request.Builder().get().url(cdnUrl.url())
                     .header("Range", "bytes=" + rangeStart + "-" + rangeEnd)
                     .build()).execute()) {
-
-                if (resp.code() != 206)
-                    throw new IOException(resp.code() + ": " + resp.message());
-
+            	int responseCode=resp.code();
+                if (responseCode != 206) {
+                	if(rangeStart==0&&responseCode!=206) {
+                		LOGGER.warn("Switch to next url for {}",url);
+                		url=cdnUrl.select();
+                		if(url!=null) {
+                			continue;
+                		}
+                	}
+                    throw new IOException(url+"["+resp.code() + "]: " + resp.message());
+                }
                 ResponseBody body = resp.body();
-                if (body == null)
+                if (body == null) {
                     throw new IOException("Response body is empty!");
-
+                }
+                cdnUrl.accepted();
                 return new InternalResponse(body.bytes(), resp.headers());
             }
+            throw new IOException("No valid url");
         }
 
         public int size() {

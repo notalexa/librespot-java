@@ -45,22 +45,21 @@ public final class CdnFeedHelper {
     }
 
     @NotNull
-    private static HttpUrl getUrl(@NotNull Session session, @NotNull StorageResolveResponse resp) {
-        String selectedUrl = resp.getCdnurl(session.random().nextInt(resp.getCdnurlCount()));
-        while (selectedUrl.contains("audio4-gm-fb")) {
-            LOGGER.warn("getUrl picked CDN with known issues {} (forcing re-selection)", selectedUrl );
-            selectedUrl = resp.getCdnurl(session.random().nextInt(resp.getCdnurlCount()));
-        }
-        return HttpUrl.get(selectedUrl);
+    private static HttpUrl[] getUrls(@NotNull Session session, @NotNull StorageResolveResponse resp) {
+    	HttpUrl[] result=new HttpUrl[resp.getCdnurlCount()];
+    	for(int i=0;i<result.length;i++) {
+    		result[i]=HttpUrl.get(resp.getCdnurl(i));
+    	}
+    	return result;
     }
 
     public static @NotNull LoadedStream loadTrack(@NotNull Session session, Metadata.@NotNull Track track, Metadata.@NotNull AudioFile file,
-                                                  @NotNull HttpUrl url, boolean preload, @Nullable HaltListener haltListener) throws IOException, CdnManager.CdnException {
+                                                  @NotNull HttpUrl[] urls, boolean preload, @Nullable HaltListener haltListener) throws IOException, CdnManager.CdnException {
         long start = System.currentTimeMillis();
         byte[] key = session.audioKey().getAudioKey(track.getGid(), file.getFileId());
         int audioKeyTime = (int) (System.currentTimeMillis() - start);
 
-        CdnManager.Streamer streamer = session.cdn().streamFile(file, key, url, haltListener);
+        CdnManager.Streamer streamer = session.cdn().streamFile(file, key, urls, haltListener);
         InputStream in = streamer.stream();
         NormalizationData normalizationData = NormalizationData.read(in);
         if (in.skip(0xa7) != 0xa7) throw new IOException("Couldn't skip 0xa7 bytes!");
@@ -69,7 +68,7 @@ public final class CdnFeedHelper {
 
     public static @NotNull LoadedStream loadTrack(@NotNull Session session, Metadata.@NotNull Track track, Metadata.@NotNull AudioFile file,
                                                   @NotNull StorageResolveResponse storage, boolean preload, @Nullable HaltListener haltListener) throws IOException, CdnManager.CdnException {
-        return loadTrack(session, track, file, getUrl(session, storage), preload, haltListener);
+        return loadTrack(session, track, file, getUrls(session, storage), preload, haltListener);
     }
 
     public static @NotNull LoadedStream loadEpisodeExternal(@NotNull Session session, Metadata.@NotNull Episode episode, @Nullable HaltListener haltListener) throws IOException, CdnManager.CdnException {
@@ -87,12 +86,12 @@ public final class CdnFeedHelper {
         }
     }
 
-    public static @NotNull LoadedStream loadEpisode(@NotNull Session session, Metadata.@NotNull Episode episode, @NotNull Metadata.AudioFile file, @NotNull HttpUrl url, @Nullable HaltListener haltListener) throws IOException, CdnManager.CdnException {
+    public static @NotNull LoadedStream loadEpisode(@NotNull Session session, Metadata.@NotNull Episode episode, @NotNull Metadata.AudioFile file, @NotNull HttpUrl[] urls, @Nullable HaltListener haltListener) throws IOException, CdnManager.CdnException {
         long start = System.currentTimeMillis();
         byte[] key = session.audioKey().getAudioKey(episode.getGid(), file.getFileId());
         int audioKeyTime = (int) (System.currentTimeMillis() - start);
 
-        CdnManager.Streamer streamer = session.cdn().streamFile(file, key, url, haltListener);
+        CdnManager.Streamer streamer = session.cdn().streamFile(file, key, urls, haltListener);
         InputStream in = streamer.stream();
         NormalizationData normalizationData = NormalizationData.read(in);
         if (in.skip(0xa7) != 0xa7) throw new IOException("Couldn't skip 0xa7 bytes!");
@@ -100,6 +99,6 @@ public final class CdnFeedHelper {
     }
 
     public static @NotNull LoadedStream loadEpisode(@NotNull Session session, Metadata.@NotNull Episode episode, @NotNull Metadata.AudioFile file, @NotNull StorageResolveResponse storage, @Nullable HaltListener haltListener) throws IOException, CdnManager.CdnException {
-        return loadEpisode(session, episode, file, getUrl(session, storage), haltListener);
+        return loadEpisode(session, episode, file, getUrls(session, storage), haltListener);
     }
 }
