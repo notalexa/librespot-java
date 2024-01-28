@@ -66,6 +66,7 @@ public class Main {
                         session.addReconnectionListener(shellEvents);
                         lastPlayer.addEventsListener(shellEvents);
                     }
+                    lastPlayer.start();
                 }
             });
 
@@ -94,6 +95,7 @@ public class Main {
                 session.addReconnectionListener(shellEvents);
                 player.addEventsListener(shellEvents);
             }
+            player.start();
         }
     }
 }
