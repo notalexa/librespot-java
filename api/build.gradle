@@ -17,7 +17,7 @@ if(hasProperty('maven.groupid')) {
 	publishing {
 		publications {
 	        mavenJava(MavenPublication) {
-	            artifactId = 'librespot-api'
+	            artifactId = 'jlib-librespot-api'
 	            groupId = property('maven.groupid')
 	            version = property('librespot.version')
 	            from components.java

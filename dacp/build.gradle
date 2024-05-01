@@ -9,7 +9,7 @@ if(hasProperty('maven.groupid')) {
 	publishing {
 		publications {
 	        mavenJava(MavenPublication) {
-	            artifactId = 'librespot-dacp'
+	            artifactId = 'jlib-librespot-dacp'
 	            groupId = property('maven.groupid')
 	            version = property('librespot.version')
 	            from components.java

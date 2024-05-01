@@ -26,7 +26,7 @@ if(hasProperty('maven.groupid')) {
 		}
 		publications {
 			PlayerJar(MavenPublication) {
-				artifactId = 'librespot-player'
+				artifactId = 'jlib-librespot-player'
 				groupId = property('maven.groupid')
 				version = property('librespot.version')
 	            from components.java
